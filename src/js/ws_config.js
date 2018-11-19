@@ -8,7 +8,7 @@ config.appId = 'fred.fredenergy.electronwallet';
 config.appGitRepo = 'https://github.com/fredenrg/fred-wallet-electron';
 
 // default port number for your daemon (e.g. TurtleCoind)
-config.daemonDefaultRpcPort = 32809;
+config.daemonDefaultRpcPort = 8070;
 
 // wallet file created by this app will have this extension
 config.walletFileDefaultExt = 'twl';
@@ -33,9 +33,9 @@ config.remoteNodeListUpdateUrl = 'null';
 
 // fallback remote node list, in case fetching update failed, fill this with known to works remote nodes
 config.remoteNodeListFallback = [
-    'pnode.fredcoinpool.com:32809',
-    '207.154.253.243:32809',
-    '127.0.0.1:32809',
+    'pnode.fredcoinpool.com:8070',
+    '207.154.253.243:8070',
+    '127.0.0.1:8070',
 ];
 
 // your currency name
