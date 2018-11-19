@@ -129,7 +129,7 @@ let decimalAdjust = (type, value, exp) => {
 
 exports.validateTRTLAddress = (address) => {
     if(!address) return false;
-    let re = new RegExp(/^TRTL(?=[aA-zZ0-9]*$)(?:.{95}|.{183})$/g);
+    let re = new RegExp(/^fEnrg(?=[aA-zZ0-9]*$)(?:.{96}|.{184})$/g);
     return re.test(address);
 };
 

@@ -208,10 +208,10 @@ function populateElementVars(){
 let jtfr = {
    tFind:  [
         "WalletShell",
-        "https://github.com/turtlecoin/turtle-wallet-electron",
-        "TurtleCoin",
-        "TRTL",
-        "turtle-service"
+        "https://github.com/fredenrg/fred-wallet-electron",
+        "FRED",
+        "FRED",
+        "FRED-walletd"
     ],
     tReplace: [
         config.appName,

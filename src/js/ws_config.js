@@ -1,7 +1,7 @@
 var config = {};
 
 // self explanatory, your application name, descriptions, etc
-config.appName = 'FREDElectron';
+config.appName = 'FREDelectron';
 config.appDescription = 'FRED Wallet';
 config.appSlogan = 'The ALTcoin for alternative energy';
 config.appId = 'fred.fredenergy.electronwallet';
@@ -17,7 +17,7 @@ config.walletFileDefaultExt = 'twl';
 config.walletServiceBinaryFilename = 'FRED-walletd';
 
 // version on the bundled service (turtle-service)
-config.walletServiceBinaryVersion = "v0.2.3";
+config.walletServiceBinaryVersion = "v0.2.3.1275";
 
 // default port number for your wallet service (e.g. turtle-service)
 config.walletServiceRpcPort = 8070;
@@ -43,7 +43,7 @@ config.assetName = 'FRED';
 // your currency ticker
 config.assetTicker =  'FRED';
 // your currency address prefix, for address validation
-config.addressPrefix =  'FRED';
+config.addressPrefix =  'fEnrg';
 // standard wallet address length, for address validation
 config.addressLength = 101;
 // intergrated wallet address length, for address validation
