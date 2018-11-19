@@ -1,6 +1,6 @@
 {
-  "name": "walletshell",
-  "productName": "WalletShell",
+  "name": "fredelectron",
+  "productName": "FREDElectron",
   "description": "FRED GUI Wallet",
   "version": "v0.1.0",
   "homepage": "https://github.com/fredenrg/fred-wallet-electron",
