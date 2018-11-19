@@ -1,7 +1,7 @@
 var config = {};
 
 // self explanatory, your application name, descriptions, etc
-config.appName = 'FREDelectron';
+config.appName = 'FREDElectron';
 config.appDescription = 'FRED Wallet';
 config.appSlogan = 'The ALTcoin for alternative energy';
 config.appId = 'fred.fredenergy.electronwallet';
