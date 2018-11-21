@@ -32,7 +32,7 @@ var WalletShellSession = function(){
         txNew: [],
         nodeFee: 0,
         nodeChoices: settings.get('pubnodes_data', []),
-        servicePath: settings.get('service_bin', 'turtle-service'),
+        servicePath: settings.get('service_bin', 'FRED-walletd'),
         configUpdated: false,
         uiStateChanged: false,
         defaultTitle: DEFAULT_TITLE,
