@@ -17,7 +17,12 @@ config.walletFileDefaultExt = 'twl';
 config.walletServiceBinaryFilename = 'FRED-walletd';
 
 // version on the bundled service (turtle-service)
-config.walletServiceBinaryVersion = "v0.2.3.1275";
+config.walletServiceBinaryVersion = "v0.13.0.1277";
+
+// config file format supported by wallet service, possible values:
+// ini -->  for turtle service (or its forks) version <= v0.8.3
+// json --> for turtle service (or its forks) version >= v0.8.4
+config.walletServiceConfigFormat = "json";
 
 // default port number for your wallet service (e.g. turtle-service)
 config.walletServiceRpcPort = 8070;
@@ -67,6 +72,11 @@ config.addressBookObfuscateEntries = true;
 config.addressBookObfuscationKey = '79009fb00ca1b7130832a42de45142cf6c4b7f333fe6fba5';
 // initial/sample entries to fill new address book
 config.addressBookSampleEntries = [
+  {
+    name: 'WalletShell Donation',
+    address: 'TRTLv1A26ngXApin33p1JsSE9Yf6REj97Xruz15D4JtSg1wuqYTmsPj5Geu2kHtBzD8TCsfd5dbdYRsrhNXMGyvtJ61AoYqLXVS',
+    paymentId: 'DF794857BC4587ECEC911AF6A6AB02513FEA524EC5B98DA8702FAC92195A94B2',
+  }
 ];
 
 module.exports = config;

@@ -9,8 +9,8 @@ const WalletShellApi = require('./ws_api');
 const uiupdater = require('./wsui_updater');
 const wsutil = require('./ws_utils');
 const config = require('./ws_config');
-
-const settings = new Store({name: 'Settings'});
+const { remote } = require('electron');
+const settings = new Store({ name: 'Settings' });
 const wsession = new WalletShellSession();
 
 const SERVICE_LOG_DEBUG = wsession.get('debug');
@@ -22,13 +22,13 @@ const ERROR_WALLET_EXEC = `Failed to start ${config.walletServiceBinaryFilename}
 const ERROR_WALLET_PASSWORD = 'Failed to load your wallet, please check your password';
 const ERROR_WALLET_IMPORT = 'Import failed, please check that you have entered all information correctly';
 const ERROR_WALLET_CREATE = 'Wallet can not be created, please check your input and try again';
-
+const ERROR_RPC_TIMEOUT = 'Unable to communicate with selected node, please try again using different node';
 const INFO_FUSION_DONE = 'Wallet optimization completed, your balance may appear incorrect for a while.';
 const INFO_FUSION_SKIPPED = 'Wallet already optimized. No further optimization is needed.';
 const ERROR_FUSION_FAILED = 'Unable to optimize your wallet, please try again in a few seconds';
 
-var WalletShellManager = function(){
-    if (!(this instanceof WalletShellManager)){
+var WalletShellManager = function () {
+    if (!(this instanceof WalletShellManager)) {
         return new WalletShellManager();
     }
 
@@ -39,21 +39,20 @@ var WalletShellManager = function(){
     this.servicePassword = settings.get('service_password');
     this.serviceHost = settings.get('service_host');
     this.servicePort = settings.get('service_port');
-    this.serviceArgsDefault = [ '--rpc-password', settings.get('service_password')];
-    this.walletConfigDefault = {'rpc-password': settings.get('service_password')};
+    this.serviceArgsDefault = ['--rpc-password', settings.get('service_password')];
+    this.walletConfigDefault = { 'rpc-password': settings.get('service_password') };
     this.servicePid = null;
     this.serviceLastPid = null;
     this.serviceActiveArgs = [];
-    this.serviceApi =  null;
+    this.serviceApi = null;
     this.syncWorker = null;
     this.fusionTxHash = [];
-    
 };
 
-WalletShellManager.prototype.init = function(){
+WalletShellManager.prototype.init = function () {
     this._getSettings();
-    if(this.serviceApi !== null) return;
-    
+    if (this.serviceApi !== null) return;
+
     let cfg = {
         service_host: this.serviceHost,
         service_port: this.servicePort,
@@ -62,26 +61,30 @@ WalletShellManager.prototype.init = function(){
     this.serviceApi = new WalletShellApi(cfg);
 };
 
-WalletShellManager.prototype._getSettings = function(){
+WalletShellManager.prototype._getSettings = function () {
     this.daemonHost = settings.get('daemon_host');
     this.daemonPort = settings.get('daemon_port');
     this.serviceBin = settings.get('service_bin');
 };
 
-WalletShellManager.prototype._reinitSession = function(){
+WalletShellManager.prototype._reinitSession = function () {
     wsession.reset();
     // remove wallet config
     let configFile = wsession.get('walletConfig');
-    if(configFile) try{ fs.unlinkSync(configFile); }catch(e){}
+    if (configFile) try { fs.unlinkSync(configFile); } catch (e) { }
     this.notifyUpdate({
         type: 'sectionChanged',
         data: 'reset-oy'
     });
 };
 
+WalletShellManager.prototype._serviceBinExists = function () {
+    wsutil.isFileExist(this.serviceBin);
+};
+
 // check 
-WalletShellManager.prototype.serviceStatus = function(){
-    return  (undefined !== this.serviceProcess && null !== this.serviceProcess);
+WalletShellManager.prototype.serviceStatus = function () {
+    return (undefined !== this.serviceProcess && null !== this.serviceProcess);
 };
 
 WalletShellManager.prototype.isRunning = function () {
@@ -90,85 +93,109 @@ WalletShellManager.prototype.isRunning = function () {
     let platform = process.platform;
     let cmd = '';
     switch (platform) {
-        case 'win32' : cmd = `tasklist`; break;
-        case 'darwin' : cmd = `ps -ax | grep ${proc}`; break;
-        case 'linux' : cmd = `ps -A`; break;
+        case 'win32': cmd = `tasklist`; break;
+        case 'darwin': cmd = `ps -ax | grep ${proc}`; break;
+        case 'linux': cmd = `ps -A`; break;
         default: break;
     }
-    if(cmd === '' || proc === '') return false;
+    if (cmd === '' || proc === '') return false;
 
     childProcess.exec(cmd, (err, stdout, stderr) => {
-        if(err) log.debug(err.message);
-        if(stderr) log.debug(stderr.toLocaleLowerCase());
+        if (err) log.debug(err.message);
+        if (stderr) log.debug(stderr.toLocaleLowerCase());
         let found = stdout.toLowerCase().indexOf(proc.toLowerCase()) > -1;
         log.debug(`Process found: ${found}`);
         return found;
     });
 };
 
-WalletShellManager.prototype._writeConfig = function(cfg){
+WalletShellManager.prototype._writeIniConfig = function (cfg) {
     let configFile = wsession.get('walletConfig');
-    if(!configFile) return '';
+    if (!configFile) return '';
 
-    cfg = cfg || {};
-    if(!cfg) return '';
-
-    let configData = '';
-    Object.keys(cfg).map((k) => { configData += `${k}=${cfg[k]}${os.EOL}`;});
-    try{
-        fs.writeFileSync(configFile, configData);
+    try {
+        fs.writeFileSync(configFile, cfg);
         return configFile;
-    }catch(err){
+    } catch (err) {
         log.error(err);
         return '';
     }
 };
 
-WalletShellManager.prototype.startService = function(walletFile, password, onError, onSuccess, onDelay){
+WalletShellManager.prototype._writeConfig = function (cfg) {
+    let configFile = wsession.get('walletConfig');
+    if (!configFile) return '';
+
+    cfg = cfg || {};
+    if (!cfg) return '';
+
+    let configData = '';
+    Object.keys(cfg).map((k) => { configData += `${k}=${cfg[k]}${os.EOL}`; });
+    try {
+        fs.writeFileSync(configFile, configData);
+        return configFile;
+    } catch (err) {
+        log.error(err);
+        return '';
+    }
+};
+
+WalletShellManager.prototype.startService = function (walletFile, password, onError, onSuccess, onDelay) {
     this.init();
 
-    if(null !== this.serviceLastPid){
+    if (null !== this.serviceLastPid) {
         // try to kill last process, in case it was stalled
         log.debug(`Trying to clean up old/stalled process, target pid: ${this.serviceLastPid}`);
-        try{
+        try {
             process.kill(this.serviceLastPid, 'SIGKILL');
-        }catch(e){}
+        } catch (e) { }
     }
 
-    if(this.syncWorker) this.stopSyncWorker();
-    
+    if (this.syncWorker) this.stopSyncWorker();
+
     let serviceArgs = this.serviceArgsDefault.concat([
         '-w', walletFile,
         '-p', password,
         '--log-level', 0,
+        '--log-file', path.join(remote.app.getPath('temp'), 'ts.log'), // macOS failed without this
         '--address'
     ]);
 
     let wsm = this;
 
     childProcess.execFile(this.serviceBin, serviceArgs, (error, stdout, stderr) => {
-            if(stderr) log.error(stderr);
+        if (stderr) log.debug(stderr);
 
-            if(error){
-                log.error(error.message);
-                onError(`ERROR_WALLET_EXEC: ${error.message}`);
-            }else{
-                log.debug(stdout);
-                if(stdout && stdout.length && stdout.indexOf(config.addressPrefix) !== -1){
-                    let trimmed = stdout.trim();
-                    let walletAddress = trimmed.substring(trimmed.indexOf(config.addressPrefix), trimmed.length);
-                    wsession.set('loadedWalletAddress', walletAddress);
-                    wsm._spawnService(walletFile, password, onError, onSuccess, onDelay);
-                }else{
-                    // just stop here
-                    onError(ERROR_WALLET_PASSWORD);
-                }
+        if (error) {
+            log.debug(error.message);
+            onError(`ERROR_WALLET_EXEC: ${error.message}`);
+        } else {
+            log.debug(stdout);
+            if (stdout && stdout.length && stdout.indexOf(config.addressPrefix) !== -1) {
+                let trimmed = stdout.trim();
+                let walletAddress = trimmed.substring(trimmed.indexOf(config.addressPrefix), trimmed.length);
+                wsession.set('loadedWalletAddress', walletAddress);
+                wsm._spawnService(walletFile, password, onError, onSuccess, onDelay);
+            } else {
+                // just stop here
+                onError(ERROR_WALLET_PASSWORD);
             }
         }
+    }
     );
 };
 
-WalletShellManager.prototype._spawnService = function(walletFile, password, onError, onSuccess, onDelay){
+WalletShellManager.prototype._argsToIni = function (args) {
+    let configData = "";
+    if ("object" !== typeof args || !args.length) return configData;
+    args.forEach((k, v) => {
+        let sep = ((v % 2) === 0) ? os.EOL : "=";
+        configData += `${sep}${k.toString().replace('--', '')}`;
+    });
+    return configData.trim();
+};
+
+WalletShellManager.prototype._spawnService = function (walletFile, password, onError, onSuccess, onDelay) {
     this.init();
     let file = path.basename(walletFile);
     let logFile = path.join(
@@ -177,55 +204,45 @@ WalletShellManager.prototype._spawnService = function(walletFile, password, onEr
     );
 
     let serviceArgs = this.serviceArgsDefault.concat([
-        '-w', walletFile,
-        '-p', password,
+        '--container-file', walletFile,
+        '--container-password', password,
         '--enable-cors', '*',
         '--daemon-address', this.daemonHost,
         '--daemon-port', this.daemonPort,
-        '--log-level', SERVICE_LOG_LEVEL
+        '--log-level', SERVICE_LOG_LEVEL,
+        '--log-file', logFile
     ]);
 
-    if(SERVICE_LOG_LEVEL > 0){
-        serviceArgs.push('--log-file');
-        serviceArgs.push(logFile);
-    }
-
-    let newConfig = {
-        'container-file': walletFile,
-        'container-password': password,
-        'enable-cors' : '*',
-        'daemon-address': this.daemonHost,
-        'daemon-port': this.daemonPort,
-        'log-level': SERVICE_LOG_LEVEL
-    };
-
-    if(SERVICE_LOG_LEVEL > 0){
-        newConfig['log-file'] = logFile;
-    }
-
-    let walletConfig = wsutil.mergeObj(this.walletConfigDefault, newConfig);
-    let configFile = this._writeConfig(walletConfig);
-    if(configFile){
-        serviceArgs = ['--config',configFile];
-    }else{
+    let configFile = wsession.get('walletConfig', null);
+    if (configFile) {
+        let configFormat = settings.get('service_config_format', 'ini');
+        if (configFormat === 'json') {
+            childProcess.execFile(this.serviceBin, serviceArgs.concat(['--save-config', configFile]), (error) => {
+                if (error) configFile = null;
+            });
+        } else {
+            let newConfig = this._argsToIni(serviceArgs);
+            configFile = this._writeIniConfig(newConfig);
+        }
+        serviceArgs = ['--config', configFile];
+    } else {
         log.warn('Failed to create config file, fallback to cmd args ');
     }
 
-    // if(scanHeight && scanHeight > 1024) walletArgs = walletArgs.concat(['--scan-height', scanHeight]);
     let wsm = this;
     log.debug('Starting service...');
-    try{
+    try {
         this.serviceProcess = childProcess.spawn(wsm.serviceBin, serviceArgs);
         this.servicePid = this.serviceProcess.pid;
-    }catch(e){
-        if(onError) onError(ERROR_WALLET_EXEC);
+    } catch (e) {
+        if (onError) onError(ERROR_WALLET_EXEC);
         log.error(`${config.walletServiceBinaryFilename} is not running`);
         return false;
     }
-    
-    this.serviceProcess.on('close', (code, signal) => {
+
+    this.serviceProcess.on('close', () => {
         this.terminateService(true);
-        log.debug(`${config.walletServiceBinaryFilename} closed, signal: ${signal}, code: ${code}`);
+        log.debug(`${config.walletServiceBinaryFilename} closed`);
     });
 
     this.serviceProcess.on('error', (err) => {
@@ -234,18 +251,18 @@ WalletShellManager.prototype._spawnService = function(walletFile, password, onEr
         log.error(`${config.walletServiceBinaryFilename} error: ${err.message}`);
     });
 
-    if(!this.serviceStatus()){
-        if(onError) onError(ERROR_WALLET_EXEC);
+    if (!this.serviceStatus()) {
+        if (onError) onError(ERROR_WALLET_EXEC);
         log.error(`${config.walletServiceBinaryFilename} is not running`);
         return false;
     }
 
     let TEST_OK = false;
-    let MAX_CHECK = 48;
-    function testConnection(retry){
+    let MAX_CHECK = 20;
+    function testConnection(retry) {
         wsm.serviceApi.getAddress().then((address) => {
             log.debug('Got an address, connection ok!');
-            if(!TEST_OK){
+            if (!TEST_OK) {
                 wsm.serviceActiveArgs = serviceArgs;
                 // update session
                 wsession.set('loadedWalletAddress', address);
@@ -263,43 +280,48 @@ WalletShellManager.prototype._spawnService = function(walletFile, password, onEr
             }
             return true;
         }).catch((err) => {
-            log.debug('Connection failed or timedout');
-            if(retry === 10 && onDelay) onDelay(`Still no respond from ${config.walletServiceBinaryFilename}, please wait a few more seconds...`);
-            if(retry >= MAX_CHECK && !TEST_OK){
-                if(wsm.serviceStatus()){
+            log.debug('Connection failed or timeout');
+            log.debug(err);
+            if (retry === 10 && onDelay) onDelay(`Still no response from ${config.walletServiceBinaryFilename}, please wait a few more seconds...`);
+            if (retry >= MAX_CHECK && !TEST_OK) {
+                if (wsm.serviceStatus()) {
                     wsm.terminateService();
                 }
                 wsm.serviceActiveArgs = [];
-                onError(err);
+                onError(ERROR_RPC_TIMEOUT);
                 return false;
-            }else{
-                setTimeout(function(){
-                    let nextTry = retry+1;
+            } else {
+                setTimeout(function () {
+                    let nextTry = retry + 1;
                     log.debug(`retrying testconn (${nextTry})`);
                     testConnection(nextTry);
-                }, 1800);
+                }, 1200);
             }
         });
     }
 
-    setTimeout(function(){
+    setTimeout(function () {
+        log.debug('performing connection test');
         testConnection(0);
-    }, 10000);
+    }, 15000);
 };
 
-WalletShellManager.prototype.stopService = function(){
+WalletShellManager.prototype.stopService = function () {
+    log.debug('stopping service');
     this.init();
     let wsm = this;
-    return new Promise(function (resolve){
-        if(wsm.serviceStatus()){
+    return new Promise(function (resolve) {
+        if (wsm.serviceStatus()) {
+            log.debug("Service is running");
             wsm.serviceLastPid = wsm.serviceProcess.pid;
             wsm.stopSyncWorker(true);
-            wsm.serviceApi.save().then(() =>{
-                try{
+            wsm.serviceApi.save().then(() => {
+                log.debug('saving wallet');
+                try {
                     wsm.terminateService(true);
                     wsm._reinitSession();
                     resolve(true);
-                }catch(err){
+                } catch (err) {
                     log.debug(`SIGTERM failed: ${err.message}`);
                     wsm.terminateService(true);
                     wsm._reinitSession();
@@ -308,81 +330,81 @@ WalletShellManager.prototype.stopService = function(){
             }).catch((err) => {
                 log.debug(`Failed to save wallet: ${err.message}`);
                 // try to wait for save to completed before force killing
-                setTimeout(()=>{
+                setTimeout(() => {
                     wsm.terminateService(true); // force kill
                     wsm._reinitSession();
                     resolve(true);
-                },10000);
+                }, 10000);
             });
         } else {
+            log.debug("Service is not running");
             wsm._reinitSession();
             resolve(false);
         }
     });
 };
 
-WalletShellManager.prototype.terminateService = function(force) {
-    if(!this.serviceStatus()) return;
+WalletShellManager.prototype.terminateService = function (force) {
+    if (!this.serviceStatus()) return;
     force = force || false;
     let signal = force ? 'SIGKILL' : 'SIGTERM';
-    log.debug(`terminating with ${signal}`);
     // ugly!
     this.serviceLastPid = this.servicePid;
-    try{
+    try {
         this.serviceProcess.kill(signal);
-        if(this.servicePid) process.kill(this.servicePid, signal);
-    }catch(e){
-        if(!force && this.serviceProcess) {
+        if (this.servicePid) process.kill(this.servicePid, signal);
+    } catch (e) {
+        if (!force && this.serviceProcess) {
             log.debug(`SIGKILLing ${config.walletServiceBinaryFilename}`);
-            try{this.serviceProcess.kill('SIGKILL');}catch(err){}
-            if(this.servicePid){
-                try{process.kill(this.servicePid, 'SIGKILL');}catch(err){}
+            try { this.serviceProcess.kill('SIGKILL'); } catch (err) { }
+            if (this.servicePid) {
+                try { process.kill(this.servicePid, 'SIGKILL'); } catch (err) { }
             }
         }
     }
-    
+
     this.serviceProcess = null;
     this.servicePid = null;
 };
 
-WalletShellManager.prototype.startSyncWorker = function(){
+WalletShellManager.prototype.startSyncWorker = function () {
     this.init();
     let wsm = this;
-    if(this.syncWorker !== null){
+    if (this.syncWorker !== null) {
         this.syncWorker = null;
-        try{wsm.syncWorker.kill('SIGKILL');}catch(e){}
+        try { wsm.syncWorker.kill('SIGKILL'); } catch (e) { }
     }
 
     this.syncWorker = childProcess.fork(
-        path.join(__dirname,'./ws_syncworker.js')
+        path.join(__dirname, './ws_syncworker.js')
     );
-    
+
     this.syncWorker.on('message', (msg) => {
-        if(msg.type === 'serviceStatus' ){
+        if (msg.type === 'serviceStatus') {
             wsm.syncWorker.send({
                 type: 'start',
                 data: {}
             });
             wsession.set('serviceReady', true);
             wsession.set('syncStarted', true);
-        }else{
+        } else {
             wsm.notifyUpdate(msg);
         }
     });
 
-    this.syncWorker.on('close', function (){
+    this.syncWorker.on('close', function () {
         wsm.syncWorker = null;
-        try{wsm.syncWorker.kill('SIGKILL');}catch(e){}
+        try { wsm.syncWorker.kill('SIGKILL'); } catch (e) { }
         log.debug(`service worker terminated.`);
     });
 
-    this.syncWorker.on('exit', function (){
+    this.syncWorker.on('exit', function () {
         wsm.syncWorker = null;
         log.debug(`service worker exited.`);
     });
 
-    this.syncWorker.on('error', function(err){
-        try{wsm.syncWorker.kill('SIGKILL');}catch(e){}
+    this.syncWorker.on('error', function (err) {
+        try { wsm.syncWorker.kill('SIGKILL'); } catch (e) { }
         wsm.syncWorker = null;
         log.debug(`service worker error: ${err.message}`);
     });
@@ -399,31 +421,32 @@ WalletShellManager.prototype.startSyncWorker = function(){
     this.syncWorker.send(cfgData);
 };
 
-WalletShellManager.prototype.stopSyncWorker = function(){
-    if(null === this.syncWorker) return;
+WalletShellManager.prototype.stopSyncWorker = function () {
+    //if (null === this.syncWorker) return;
+    log.debug('stopping syncworker');
 
-    try{
-        this.syncWorker.send({type: 'stop', data: {}});
+    try {
+        this.syncWorker.send({ type: 'stop', data: {} });
         this.syncWorker.kill('SIGTERM');
-        this.syncWorker  = null;
-    }catch(e){
+        this.syncWorker = null;
+    } catch (e) {
         log.debug(`syncworker already stopped`);
     }
 };
 
-WalletShellManager.prototype.getNodeFee = function(){
+WalletShellManager.prototype.getNodeFee = function () {
     let wsm = this;
-    
+
     this.serviceApi.getFeeInfo().then((res) => {
         let theFee;
-        if(!res.amount || !res.address){
+        if (!res.amount || !res.address) {
             theFee = 0;
-        }else{
+        } else {
             theFee = (res.amount / config.decimalDivisor);
         }
         wsession.set('nodeFee', theFee);
-        if(theFee <= 0) return theFee;
-        
+        if (theFee <= 0) return theFee;
+
         wsm.notifyUpdate({
             type: 'nodeFeeUpdated',
             data: theFee
@@ -434,35 +457,38 @@ WalletShellManager.prototype.getNodeFee = function(){
     });
 };
 
-WalletShellManager.prototype.genIntegratedAddress = function(paymentId, address){
+WalletShellManager.prototype.genIntegratedAddress = function (paymentId, address) {
     let wsm = this;
     return new Promise((resolve, reject) => {
         address = address || wsession.get('loadedWalletAddress');
-        let params = {address: address, paymentId: paymentId};
-        wsm.serviceApi.createIntegratedAddress(params).then((result) =>{
+        let params = { address: address, paymentId: paymentId };
+        wsm.serviceApi.createIntegratedAddress(params).then((result) => {
             return resolve(result);
-        }).catch((err)=>{
+        }).catch((err) => {
             return reject(err);
         });
     });
 };
 
-WalletShellManager.prototype.createWallet = function(walletFile, password){
+WalletShellManager.prototype.createWallet = function (walletFile, password) {
     this.init();
     let wsm = this;
     return new Promise((resolve, reject) => {
         let serviceArgs = wsm.serviceArgsDefault.concat(
-            ['-g',  '-w', walletFile,  '-p', password]
+            [
+                '-g', '-w', walletFile, '-p', password,
+                '--log-level', 0, '--log-file', path.join(remote.app.getPath('temp'), 'ts.log')
+            ]
         );
         childProcess.execFile(
             wsm.serviceBin, serviceArgs, (error, stdout, stderr) => {
-                if(stdout) log.debug(stdout);
-                if(stderr) log.error(stderr);
-                if (error){
+                if (stdout) log.debug(stdout);
+                if (stderr) log.debug(stderr);
+                if (error) {
                     log.error(`Failed to create wallet: ${error.message}`);
                     return reject(new Error(ERROR_WALLET_CREATE));
                 } else {
-                    if(!wsutil.isRegularFileAndWritable(walletFile)){
+                    if (!wsutil.isRegularFileAndWritable(walletFile)) {
                         log.error(`${walletFile} is invalid or unreadable`);
                         return reject(new Error(ERROR_WALLET_CREATE));
                     }
@@ -473,7 +499,7 @@ WalletShellManager.prototype.createWallet = function(walletFile, password){
     });
 };
 
-WalletShellManager.prototype.importFromKeys = function(walletFile, password, viewKey, spendKey, scanHeight){
+WalletShellManager.prototype.importFromKeys = function (walletFile, password, viewKey, spendKey, scanHeight) {
     this.init();
     let wsm = this;
     return new Promise((resolve, reject) => {
@@ -482,30 +508,30 @@ WalletShellManager.prototype.importFromKeys = function(walletFile, password, vie
         let serviceArgs = wsm.serviceArgsDefault.concat([
             '-g', '-w', walletFile, '-p', password,
             '--view-key', viewKey, '--spend-key', spendKey,
+            '--log-level', 0, '--log-file', path.join(remote.app.getPath('temp'), 'ts.log')
         ]);
 
-        if(scanHeight > 1024) serviceArgs = serviceArgs.concat(['--scan-height',scanHeight]);
+        if (scanHeight >= 0) serviceArgs = serviceArgs.concat(['--scan-height', scanHeight]);
 
         childProcess.execFile(
             wsm.serviceBin, serviceArgs, (error, stdout, stderr) => {
-                if(stdout) log.debug(stdout);
-                if(stderr) log.error(stderr);
-                if (error){
+                if (stdout) log.debug(stdout);
+                if (stderr) log.debug(stderr);
+                if (error) {
                     log.debug(`Failed to import key: ${error.message}`);
                     return reject(new Error(ERROR_WALLET_IMPORT));
                 } else {
-                    if(!wsutil.isRegularFileAndWritable(walletFile)){
+                    if (!wsutil.isRegularFileAndWritable(walletFile)) {
                         return reject(new Error(ERROR_WALLET_IMPORT));
                     }
                     return resolve(walletFile);
                 }
             }
         );
-
     });
 };
 
-WalletShellManager.prototype.importFromSeed = function(walletFile, password, mnemonicSeed, scanHeight){
+WalletShellManager.prototype.importFromSeed = function (walletFile, password, mnemonicSeed, scanHeight) {
     this.init();
     let wsm = this;
     return new Promise((resolve, reject) => {
@@ -514,20 +540,21 @@ WalletShellManager.prototype.importFromSeed = function(walletFile, password, mne
         let serviceArgs = wsm.serviceArgsDefault.concat([
             '-g', '-w', walletFile, '-p', password,
             '--mnemonic-seed', mnemonicSeed,
+            '--log-level', 0, '--log-file', path.join(remote.app.getPath('temp'), 'ts.log')
         ]);
 
-        if(scanHeight > 1024) serviceArgs = serviceArgs.concat(['--scan-height',scanHeight]);
+        if (scanHeight >= 0) serviceArgs = serviceArgs.concat(['--scan-height', scanHeight]);
 
         childProcess.execFile(
             wsm.serviceBin, serviceArgs, (error, stdout, stderr) => {
-                if(stdout) log.debug(stdout);
-                if(stderr) log.error(stderr);
+                if (stdout) log.debug(stdout);
+                if (stderr) log.debug(stderr);
 
-                if (error){
+                if (error) {
                     log.debug(`Error importing seed: ${error.message}`);
                     return reject(new Error(ERROR_WALLET_IMPORT));
                 } else {
-                    if(!wsutil.isRegularFileAndWritable(walletFile)){
+                    if (!wsutil.isRegularFileAndWritable(walletFile)) {
                         return reject(new Error(ERROR_WALLET_IMPORT));
                     }
                     return resolve(walletFile);
@@ -537,10 +564,10 @@ WalletShellManager.prototype.importFromSeed = function(walletFile, password, mne
     });
 };
 
-WalletShellManager.prototype.getSecretKeys = function(address){
+WalletShellManager.prototype.getSecretKeys = function (address) {
     let wsm = this;
     return new Promise((resolve, reject) => {
-        wsm.serviceApi.getBackupKeys({address: address}).then((result) => {
+        wsm.serviceApi.getBackupKeys({ address: address }).then((result) => {
             return resolve(result);
         }).catch((err) => {
             log.debug(`Failed to get keys: ${err.message}`);
@@ -549,7 +576,7 @@ WalletShellManager.prototype.getSecretKeys = function(address){
     });
 };
 
-WalletShellManager.prototype.sendTransaction = function(params){
+WalletShellManager.prototype.sendTransaction = function (params) {
     let wsm = this;
     return new Promise((resolve, reject) => {
         wsm.serviceApi.sendTransaction(params).then((result) => {
@@ -560,24 +587,24 @@ WalletShellManager.prototype.sendTransaction = function(params){
     });
 };
 
-WalletShellManager.prototype._fusionGetMinThreshold = function(threshold, minThreshold, maxFusionReadyCount, counter){
+WalletShellManager.prototype._fusionGetMinThreshold = function (threshold, minThreshold, maxFusionReadyCount, counter) {
     let wsm = this;
     return new Promise((resolve, reject) => {
         counter = counter || 0;
-        threshold = threshold || (parseInt(wsession.get('walletUnlockedBalance'),10)*100)+1;
-        threshold = parseInt(threshold,10);
+        threshold = threshold || (parseInt(wsession.get('walletUnlockedBalance'), 10) * 100) + 1;
+        threshold = parseInt(threshold, 10);
         minThreshold = minThreshold || threshold;
         maxFusionReadyCount = maxFusionReadyCount || 0;
-        
+
         let maxThreshCheckIter = 20;
 
-        wsm.serviceApi.estimateFusion({threshold: threshold}).then((res)=>{
+        wsm.serviceApi.estimateFusion({ threshold: threshold }).then((res) => {
             // nothing to optimize
-            if( counter === 0 && res.fusionReadyCount === 0) return resolve(0); 
+            if (counter === 0 && res.fusionReadyCount === 0) return resolve(0);
             // stop at maxThreshCheckIter or when threshold too low
-            if( counter > maxThreshCheckIter || threshold < 10) return resolve(minThreshold);
+            if (counter > maxThreshCheckIter || threshold < 10) return resolve(minThreshold);
             // we got a possibly best minThreshold
-            if(res.fusionReadyCount < maxFusionReadyCount){
+            if (res.fusionReadyCount < maxFusionReadyCount) {
                 return resolve(minThreshold);
             }
             // continue to find next best minThreshold
@@ -585,100 +612,126 @@ WalletShellManager.prototype._fusionGetMinThreshold = function(threshold, minThr
             minThreshold = threshold;
             threshold /= 2;
             counter += 1;
-            resolve(wsm._fusionGetMinThreshold(threshold, minThreshold, maxFusionReadyCount, counter).then((res)=>{
+            resolve(wsm._fusionGetMinThreshold(threshold, minThreshold, maxFusionReadyCount, counter).then((res) => {
                 return res;
             }));
-        }).catch((err)=>{
+        }).catch((err) => {
             return reject(new Error(err));
         });
     });
 };
 
-WalletShellManager.prototype._fusionSendTx = function(threshold, counter){
+WalletShellManager.prototype._fusionSendTx = function (threshold, counter) {
     let wsm = this;
+    const wtime = ms => new Promise(resolve => setTimeout(resolve, ms));
+
     return new Promise((resolve, reject) => {
         counter = counter || 0;
         let maxIter = 256;
-        if(counter >= maxIter) return resolve(wsm.fusionTxHash); // stop at max iter
-        
-        // keep sending fusion tx till it hit IOOR or reaching max iter 
-        log.debug(`send fusion tx, iteration: ${counter}`);
-        wsm.serviceApi.sendFusionTransaction({threshold: threshold}).then((resp)=> {
-            wsm.fusionTxHash.push(resp.transactionHash);
-            counter +=1;
-            return resolve(wsm._fusionSendTx(threshold, counter).then((resp)=>{
-                return resp;
-            }));
-        }).catch((err)=>{
-            return reject(new Error(err));
+        if (counter >= maxIter) return resolve(wsm.fusionTxHash); // stop at max iter
+
+        wtime(2400).then(() => {
+            // keep sending fusion tx till it hit IOOR or reaching max iter 
+            log.debug(`send fusion tx, iteration: ${counter}`);
+            wsm.serviceApi.sendFusionTransaction({ threshold: threshold }).then((resp) => {
+                wsm.fusionTxHash.push(resp.transactionHash);
+                counter += 1;
+                return resolve(wsm._fusionSendTx(threshold, counter).then((resp) => {
+                    return resp;
+                }));
+            }).catch((err) => {
+                if(err) {
+                    if (err.toLowerCase().trim() === 'index is out of range') {
+                        return reject(new Error(err));
+                    }
+                }
+                counter += 1;
+                return resolve(wsm._fusionSendTx(threshold, counter).then((resp) => {
+                    return resp;
+                }));
+            });
+
         });
     });
 };
 
-WalletShellManager.prototype.optimizeWallet = function(){
+WalletShellManager.prototype.optimizeWallet = function () {
     let wsm = this;
-    return new Promise( (resolve, reject) => {
+    log.debug('running optimizeWallet');
+    return new Promise((resolve, reject) => {
         wsm.fusionTxHash = [];
-        wsm._fusionGetMinThreshold().then((res)=>{
-            if(res <= 0 ){
+        wsm._fusionGetMinThreshold().then((res) => {
+            if (res <= 0) {
                 wsm.notifyUpdate({
                     type: 'fusionTxCompleted',
-                    data: INFO_FUSION_SKIPPED
+                    data: INFO_FUSION_SKIPPED,
+                    code: 0
                 });
+                log.debug('fusion skipped');
+                log.debug(wsm.fusionTxHash);
                 return resolve(INFO_FUSION_SKIPPED);
             }
 
             log.debug(`performing fusion tx, threshold: ${res}`);
+
             return resolve(
                 wsm._fusionSendTx(res).then(() => {
                     wsm.notifyUpdate({
                         type: 'fusionTxCompleted',
-                        data: INFO_FUSION_DONE
+                        data: INFO_FUSION_DONE,
+                        code: 1
                     });
+                    log.debug('fusion done');
+                    log.debug(wsm.fusionTxHash);
                     return INFO_FUSION_DONE;
-                }).catch((err)=>{
+                }).catch((err) => {
                     let msg = err.message.toLowerCase();
                     let outMsg = ERROR_FUSION_FAILED;
-                    switch(msg){
+                    switch (msg) {
                         case 'index is out of range':
-                            outMsg = wsm.fusionTxHash.length >=1 ? INFO_FUSION_DONE : INFO_FUSION_SKIPPED;
+                            outMsg = wsm.fusionTxHash.length >= 1 ? INFO_FUSION_DONE : INFO_FUSION_SKIPPED;
                             break;
                         default:
                             break;
                     }
+                    log.debug(`fusionTx outMsg: ${outMsg}`);
+                    log.debug(wsm.fusionTxHash);
                     wsm.notifyUpdate({
                         type: 'fusionTxCompleted',
-                        data: outMsg
+                        data: outMsg,
+                        code: outMsg === INFO_FUSION_SKIPPED ? 0 : 1
                     });
                     return outMsg;
                 })
             );
-        }).catch((err)=>{
+        }).catch((err) => {
+            log.debug('fusion error');
+            console.log(err);
             return reject((err.message));
         });
     });
 };
 
-WalletShellManager.prototype.networkStateUpdate = function(state){
-    if(!this.syncWorker) return;    
+WalletShellManager.prototype.networkStateUpdate = function (state) {
+    if (!this.syncWorker) return;
     log.debug('ServiceProcess PID: ' + this.servicePid);
-    if(state === 0){
+    if (state === 0) {
         // pause the syncworker, but leave service running
         this.syncWorker.send({
             type: 'pause',
             data: null
         });
-    }else{
+    } else {
         this.init();
         // looks like turtle-service always stalled after disconnected, just kill & relaunch it
         let pid = this.serviceProcess.pid || null;
         this.terminateService();
         // wait a bit
         setImmediate(() => {
-            if(pid){
-                try{process.kill(pid, 'SIGKILL');}catch(e){}
+            if (pid) {
+                try { process.kill(pid, 'SIGKILL'); } catch (e) { }
             }
-            setTimeout(()=>{
+            setTimeout(() => {
                 log.debug(`respawning ${config.walletServiceBinaryFilename}`);
                 this.serviceProcess = childProcess.spawn(this.serviceBin, this.serviceActiveArgs);
                 // store new pid
@@ -687,16 +740,16 @@ WalletShellManager.prototype.networkStateUpdate = function(state){
                     type: 'resume',
                     data: null
                 });
-            },15000);
-        },2500);        
+            }, 15000);
+        }, 2500);
     }
 };
 
-WalletShellManager.prototype.notifyUpdate = function(msg){
+WalletShellManager.prototype.notifyUpdate = function (msg) {
     uiupdater.updateUiState(msg);
 };
 
-WalletShellManager.prototype.resetState = function(){
+WalletShellManager.prototype.resetState = function () {
     return this._reinitSession();
 };
 
