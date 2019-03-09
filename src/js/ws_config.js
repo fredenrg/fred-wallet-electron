@@ -38,8 +38,8 @@ config.remoteNodeListUpdateUrl = 'null';
 
 // fallback remote node list, in case fetching update failed, fill this with known to works remote nodes
 config.remoteNodeListFallback = [
-    'pnode.fredcoinpool.com:8070',
-    'pnode2.fredcoinpool.com:8070',
+    'pnode.fredcoinpool.com:32809',
+    'pnode2.fredcoinpool.com:32809',
     '127.0.0.1:8070',
 ];
 
