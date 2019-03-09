@@ -2,7 +2,7 @@
   "name": "fredelectron",
   "productName": "FREDElectron",
   "description": "FRED GUI Wallet",
-  "version": "v0.3.9",
+  "version": "v0.3.11",
   "homepage": "https://github.com/fredenrg/fred-wallet-electron",
   "repository": "https://github.com/fredenrg/fred-wallet-electron",
   "main": "main.js",
@@ -19,20 +19,22 @@
   "license": "ISC",
   "devDependencies": {
     "devtron": "^1.4.0",
-    "electron": "^3.1.2",
+    "electron": "^4.0.5",
     "electron-builder": "^20.38.5",
-    "jshint": "^2.9.7"
+    "jshint": "^2.10.1"
   },
   "dependencies": {
     "@trodi/electron-splashscreen": "^0.3.4",
     "ag-grid-community": "^19.1.4",
-    "async": "^2.6.1",
+    "async": "^2.6.2",
     "csv-writer": "^1.2.0",
     "electron-log": "^2.2.17",
     "electron-store": "^2.0.0",
+    "fnv-plus": "^1.2.12",
+    "node-crypto-gcm": "^1.0.3",
     "qr-image": "^3.2.0",
     "request": "^2.88.0",
-    "request-promise-native": "^1.0.5"
+    "request-promise-native": "^1.0.7"
   },
   "build": {
     "appId": "fred.fredenergy.electronwallet",
@@ -77,9 +79,8 @@
     },
     "nsis": {
       "artifactName": "${productName}-v${version}-${os}-${arch}-setup.${ext}",
-      "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": true
+      "oneClick": true,
+      "perMachine": false
     },
     "mac": {
       "artifactName": "${productName}-v${version}-${os}-${arch}.${ext}",

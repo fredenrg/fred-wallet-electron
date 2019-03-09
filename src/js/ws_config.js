@@ -75,8 +75,15 @@ config.addressBookSampleEntries = [
   {
     name: 'WalletShell Donation',
     address: 'TRTLv1A26ngXApin33p1JsSE9Yf6REj97Xruz15D4JtSg1wuqYTmsPj5Geu2kHtBzD8TCsfd5dbdYRsrhNXMGyvtJ61AoYqLXVS',
-    paymentId: 'DF794857BC4587ECEC911AF6A6AB02513FEA524EC5B98DA8702FAC92195A94B2',
+    paymentId: '',
   }
 ];
+// cipher config for private address book
+config.addressBookCipherConfig = {
+  algorithm: 'aes-256-gcm',
+  saltLenght: 128,
+  pbkdf2Rounds: 10000,
+  pbkdf2Digest: 'sha512'
+};
 
 module.exports = config;
