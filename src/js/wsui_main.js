@@ -949,7 +949,7 @@ function handleAddressBook() {
 
     // disable payment id input for non standard adress
     function setAbPaymentIdState(addr) {
-        if (addr.length > config.addressLength) {
+        if (addr.length > 101) {
             addressBookInputPaymentId.value = '';
             addressBookInputPaymentId.setAttribute('disabled', true);
         } else {
@@ -1154,7 +1154,7 @@ function handleAddressBook() {
             }
         }
 
-        if (addressValue.length > config.addressLength) paymentIdValue.value = '';
+        if (addressValue.length > 101) paymentIdValue.value = '';
 
         let entryName = nameValue.trim();
         let entryAddr = addressValue.trim();
@@ -1974,7 +1974,7 @@ function handleSendTransfer() {
 
     sendInputFee.value = config.minimumFee;
     function setPaymentIdState(addr) {
-        if (addr.length > config.addressLength) {
+        if (addr.length > 101) {
             sendInputPaymentId.value = '';
             sendInputPaymentId.setAttribute('disabled', true);
         } else {
@@ -2016,7 +2016,7 @@ function handleSendTransfer() {
         }
 
         let paymentId = sendInputPaymentId.value ? sendInputPaymentId.value.trim() : '';
-        if (recipientAddress.length > config.addressLength) {
+        if (recipientAddress.length > 101) {
             paymentId = '';
         } else if (paymentId.length) {
             if (!wsutil.validatePaymentId(paymentId)) {
@@ -2027,8 +2027,8 @@ function handleSendTransfer() {
 
         let total = 0;
         let amount = sendInputAmount.value ? parseFloat(sendInputAmount.value) : 0;
-        if (amount <= 0 || amount < config.mininumSend) {
-            formMessageSet('send', 'error', `Sorry, minimum amount you can send is ${config.mininumSend}`);
+        if (amount <= 0) {
+            formMessageSet('send', 'error', 'Sorry, minimum amount you can send is 0.001');
             return;
         }
 

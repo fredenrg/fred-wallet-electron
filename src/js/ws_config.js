@@ -17,7 +17,7 @@ config.walletFileDefaultExt = 'twl';
 config.walletServiceBinaryFilename = 'FRED-walletd';
 
 // version on the bundled service (turtle-service)
-config.walletServiceBinaryVersion = "v0.13.0";
+config.walletServiceBinaryVersion = "v0.13.0.1277";
 
 // config file format supported by wallet service, possible values:
 // ini -->  for turtle service (or its forks) version <= v0.8.3
@@ -38,15 +38,17 @@ config.remoteNodeListUpdateUrl = 'null';
 
 // fallback remote node list, in case fetching update failed, fill this with known to works remote nodes
 config.remoteNodeListFallback = [
-    'pnode.fredcoinpool.com:32809'
+    'pnode.fredcoinpool.com:32809',
+    'pnode2.fredcoinpool.com:32809',
+    '127.0.0.1:8070',
 ];
 
 // your currency name
-config.assetName = 'FRED';
+config.assetName = 'FREDEnergy';
 // your currency ticker
-config.assetTicker = 'FRED';
+config.assetTicker =  'FRED';
 // your currency address prefix, for address validation
-config.addressPrefix = 'fEnrg';
+config.addressPrefix =  'fEnrg';
 // standard wallet address length, for address validation
 config.addressLength = 101;
 // integrated wallet address length, for address validation. Added length is length of payment ID encoded in base58.
