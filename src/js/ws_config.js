@@ -44,7 +44,7 @@ config.remoteNodeListFallback = [
 ];
 
 // your currency name
-config.assetName = 'FRED';
+config.assetName = 'FREDEnergy';
 // your currency ticker
 config.assetTicker =  'FRED';
 // your currency address prefix, for address validation
