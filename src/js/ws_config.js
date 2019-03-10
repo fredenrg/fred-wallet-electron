@@ -51,8 +51,8 @@ config.assetTicker =  'FRED';
 config.addressPrefix =  'fEnrg';
 // standard wallet address length, for address validation
 config.addressLength = 101;
-// intergrated wallet address length, for address validation
-config.integratedAddressLength = 189;
+// integrated wallet address length, for address validation. Added length is length of payment ID encoded in base58.
+config.integratedAddressLength = config.addressLength + ((64 * 11) / 8);
 
 // minimum fee for sending transaction
 config.minimumFee = 0.1;
@@ -60,10 +60,10 @@ config.minimumFee = 0.1;
 config.mininumSend = 0.0001;
 // default mixin/anonimity for transaction
 config.defaultMixin = 3;
-// to convert from atomic unit
-config.decimalDivisor = 1000000000;
 // to represent human readable value
 config.decimalPlaces = 9;
+// to convert from atomic unit
+config.decimalDivisor = 1000000000 ** config.decimalPlaces;
 
 // obfuscate address book entries, set to false if you want to save it in plain json file.
 // not for security because the encryption key is attached here

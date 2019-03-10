@@ -221,16 +221,20 @@ let jtfr = {
     tFind: [
         "WalletShell",
         "https://github.com/fredenrg/fred-wallet-electron",
+        "FREDEnergy",
         "FRED",
-        "FRED",
-        "FRED-walletd"
+        "FRED-walletd",
+        "CFG_MIN_FEE",
+        "CFG_MIN_SEND"
     ],
     tReplace: [
         config.appName,
         config.appGitRepo,
         config.assetName,
         config.assetTicker,
-        config.walletServiceBinaryFilename
+        config.walletServiceBinaryFilename,
+        config.minimumFee,
+        config.mininumSend
     ]
 };
 
@@ -321,7 +325,7 @@ function showIntegratedAddressForm() {
             <button id="doGenIntegratedAddr" type="button" class="button-green">Generate</button>
         </div>
         <span title="Close this dialog (esc)" class="dialog-close dialog-close-default" data-target="#ab-dialog"><i class="fas fa-window-close"></i></span>
-    </div>    
+    </div>
     `;
     dialog.innerHTML = iaform;
     dialog.showModal();
@@ -945,7 +949,7 @@ function handleAddressBook() {
 
     // disable payment id input for non standard adress
     function setAbPaymentIdState(addr) {
-        if (addr.length > 99) {
+        if (addr.length > config.addressLength) {
             addressBookInputPaymentId.value = '';
             addressBookInputPaymentId.setAttribute('disabled', true);
         } else {
@@ -987,7 +991,7 @@ function handleAddressBook() {
                     <button id="createNewAddressBook" type="button" class="button-green">Create & activate</button>
                 </div>
                 <span title="Close this dialog (esc)" class="dialog-close dialog-close-default" data-target="#ab-dialog"><i class="fas fa-window-close"></i></span>
-            </div>             
+            </div>
         `;
 
         wsutil.innerHTML(dialog, tpl);
@@ -1072,7 +1076,7 @@ function handleAddressBook() {
                         <button id="loadAddressBook" type="button" class="button-green">Open</button>
                     </div>
                     <span id="addressBookSwitcherClose" title="Close this dialog (esc)" class="dialog-close dialog-close-defaultx" data-target="#ab-dialog"><i class="fas fa-window-close"></i></span>
-                </div>             
+                </div>
             `;
             wsutil.innerHTML(dialog, tpl);
             dialog = document.getElementById('ab-dialog');
@@ -1150,7 +1154,7 @@ function handleAddressBook() {
             }
         }
 
-        if (addressValue.length > 99) paymentIdValue.value = '';
+        if (addressValue.length > config.addressLength) paymentIdValue.value = '';
 
         let entryName = nameValue.trim();
         let entryAddr = addressValue.trim();
@@ -1635,8 +1639,8 @@ function handleWalletRescan() {
             </p>
             <div class="input-wrap">
                 <label>Starting block height:</label>
-                <input type="number" min="0" step="1" class="text-block" 
-                        id="rescanScanHeight" value="1" 
+                <input type="number" min="0" step="1" class="text-block"
+                        id="rescanScanHeight" value="1"
                         title="First block index to be scanned"
                         />
             </div>
@@ -1968,9 +1972,9 @@ function handleSendTransfer() {
         if (maxsend) sendInputAmount.value = maxsend;
     });
 
-    sendInputFee.value = 0.1;
+    sendInputFee.value = config.minimumFee;
     function setPaymentIdState(addr) {
-        if (addr.length > 99) {
+        if (addr.length > config.addressLength) {
             sendInputPaymentId.value = '';
             sendInputPaymentId.setAttribute('disabled', true);
         } else {
@@ -2012,7 +2016,7 @@ function handleSendTransfer() {
         }
 
         let paymentId = sendInputPaymentId.value ? sendInputPaymentId.value.trim() : '';
-        if (recipientAddress.length > 99) {
+        if (recipientAddress.length > config.addressLength) {
             paymentId = '';
         } else if (paymentId.length) {
             if (!wsutil.validatePaymentId(paymentId)) {
@@ -2023,8 +2027,8 @@ function handleSendTransfer() {
 
         let total = 0;
         let amount = sendInputAmount.value ? parseFloat(sendInputAmount.value) : 0;
-        if (amount <= 0) {
-            formMessageSet('send', 'error', 'Sorry, invalid amount');
+        if (amount <= 0 || amount < config.mininumSend) {
+            formMessageSet('send', 'error', `Sorry, minimum amount you can send is ${config.mininumSend}`);
             return;
         }
 
@@ -2703,7 +2707,7 @@ function initHandlers() {
                 return;
             }
             // only allow standard address
-            if (addr.length > 99) {
+            if (addr.length > config.addressLength) {
                 formMessageSet('gia', 'error', `Only standard ${config.assetName} address are supported`);
                 return;
             }
