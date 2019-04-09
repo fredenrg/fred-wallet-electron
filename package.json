@@ -2,7 +2,7 @@
   "name": "fredelectron",
   "productName": "FREDElectron",
   "description": "FRED GUI Wallet",
-  "version": "v0.3.11",
+  "version": "v0.3.12",
   "homepage": "https://github.com/fredenrg/fred-wallet-electron",
   "repository": "https://github.com/fredenrg/fred-wallet-electron",
   "main": "main.js",
