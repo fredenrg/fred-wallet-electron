@@ -17,7 +17,7 @@ config.walletFileDefaultExt = 'twl';
 config.walletServiceBinaryFilename = 'FRED-walletd';
 
 // version on the bundled service (turtle-service)
-config.walletServiceBinaryVersion = "v0.13.0.1277";
+config.walletServiceBinaryVersion = "v0.14.0.1274";
 
 // config file format supported by wallet service, possible values:
 // ini -->  for turtle service (or its forks) version <= v0.8.3
